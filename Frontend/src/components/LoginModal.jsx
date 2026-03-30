@@ -2,27 +2,35 @@ import { useState } from 'react'
 import styles from './LoginModal.module.css'
 
 export default function LoginModal({ onClose, onLogin }) {
-  const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async () => {
-    if (!name.trim() || !email.trim() || !password.trim()) {
-      setError('All fields are required.')
-      return
-    }
-    if (!email.includes('@')) {
-      setError('Enter a valid email address.')
+    if (!email.trim() || !password.trim()) {
+      setError('Email and password are required.')
       return
     }
     setError('')
     setLoading(true)
-    // Simulate async (swap for real auth call)
-    await new Promise(r => setTimeout(r, 600))
-    onLogin({ name: name.trim(), email: email.trim() })
-    setLoading(false)
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'Login failed.')
+        return
+      }
+      onLogin({ token: data.token, user: data.user })
+    } catch {
+      setError('Could not reach the server. Is the backend running?')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleKey = (e) => {
@@ -41,22 +49,10 @@ export default function LoginModal({ onClose, onLogin }) {
             </svg>
           </div>
           <h2 className={styles.title}>Welcome back</h2>
-          <p className={styles.sub}>Sign in to sync your chat history</p>
+          <p className={styles.sub}>Sign in to access your chat history</p>
         </div>
 
         <div className={styles.fields}>
-          <div className={styles.field}>
-            <label className={styles.label}>Name</label>
-            <input
-              className={styles.input}
-              type="text"
-              placeholder="Your name"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              onKeyDown={handleKey}
-              autoFocus
-            />
-          </div>
           <div className={styles.field}>
             <label className={styles.label}>Email</label>
             <input
@@ -66,6 +62,7 @@ export default function LoginModal({ onClose, onLogin }) {
               value={email}
               onChange={e => setEmail(e.target.value)}
               onKeyDown={handleKey}
+              autoFocus
             />
           </div>
           <div className={styles.field}>
@@ -88,10 +85,6 @@ export default function LoginModal({ onClose, onLogin }) {
             {loading ? 'Signing in…' : 'Sign in →'}
           </button>
         </div>
-
-        <p className={styles.note}>
-          This is a demo login. Connect your own auth (Clerk, Supabase, etc.) to make it real.
-        </p>
       </div>
     </div>
   )

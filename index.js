@@ -5,7 +5,6 @@ import { Command } from "commander";
 import { logger } from "./utils/logger.js";
 import { safeParseJSON } from "./utils/parseJSON.js";
 import { getLLMProvider } from "./llm/index.js";
-import { listRoadmap } from "./mcp/roadmap.js";
 import { listBacklog, addToBacklog } from "./mcp/backlog.js";
 import { listSprint, addToSprint } from "./mcp/sprint.js";
 import { appendChangelog } from "./mcp/changelog.js";
@@ -16,21 +15,6 @@ program
   .name("devflow")
   .description("CLI for Notion task flow + LLM helpers")
   .version("1.0.0");
-
-program
-  .command("roadmap:list")
-  .option("--limit <n>", "max results", "20")
-  .action(async (opts) => {
-    const items = await listRoadmap({ pageSize: Number(opts.limit) || 20 });
-    logger.info(`Roadmap items: ${items.length}`);
-    for (const p of items) {
-      const title =
-        p?.properties?.Name?.title?.map((t) => t?.plain_text).filter(Boolean).join("") ||
-        p?.properties?.Title?.title?.map((t) => t?.plain_text).filter(Boolean).join("") ||
-        p?.id;
-      console.log(`- ${title}`);
-    }
-  });
 
 program
   .command("backlog:list")

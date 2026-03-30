@@ -14,10 +14,9 @@ function extractNotionId(value) {
 
 export const notion = {
   apiKey: requireEnv("NOTION_API_KEY"),
-  roadmapDbId: extractNotionId(requireEnv("NOTION_ROADMAP_DB")),
-  backlogDbId: extractNotionId(requireEnv("NOTION_BACKLOG_DB")),
+  roadmapDbId: extractNotionId(requireEnv("NOTION_ROADMAP_PAGE")),
   sprintDbId: extractNotionId(requireEnv("NOTION_SPRINT_DB")),
-  changelogPageId: extractNotionId(requireEnv("NOTION_CHANGELOG_PAGE")),
+  backlogDbId: extractNotionId(requireEnv("NOTION_BACKLOG_DB")),
 };
 
 export { extractNotionId };

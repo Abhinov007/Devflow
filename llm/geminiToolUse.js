@@ -63,10 +63,13 @@ Rules:
 export async function runNotionAgentGemini({
   prompt,
   model = process.env.GEMINI_MODEL || "gemini-2.0-flash",
+  onChunk = null,
 }) {
+  const send = (text) => onChunk?.(text);
   const apiKey = requireEnv("GEMINI_API_KEY");
   const contents = [{ role: "user", parts: [{ text: prompt }] }];
   const actions = [];
+  let roadmapUrl = null;
   const MAX_ITERATIONS = 15;
 
   for (let i = 0; i < MAX_ITERATIONS; i++) {
@@ -78,33 +81,42 @@ export async function runNotionAgentGemini({
 
     logger.info("Gemini turn", { finishReason, parts: parts.length });
 
-    // Append model turn to history
     contents.push({ role: "model", parts });
 
     const functionCalls = parts.filter((p) => p.functionCall);
 
     if (functionCalls.length === 0) {
-      // No more tool calls — extract text summary
       const summary = parts
         .filter((p) => p.text)
         .map((p) => p.text)
         .join("");
+      send(summary);
+      if (roadmapUrl) send(`\n\n---\n[📋 View in Notion](${roadmapUrl})`);
       return { summary, actions };
     }
 
-    // Execute all tool calls and collect responses
     const functionResponses = [];
     for (const part of functionCalls) {
       const { name, args } = part.functionCall;
       logger.info(`Tool call: ${name}`, args);
+
+      const label = {
+        create_roadmap: `Creating roadmap: **${args.title}**...`,
+        add_task_to_backlog: `Adding to backlog: ${args.title}`,
+        add_task_to_sprint: `Adding to sprint: ${args.title}`,
+      }[name] ?? `Calling ${name}...`;
+      send(`\n${label}`);
+
       try {
         const result = await executeTool(name, args);
         actions.push({ tool: name, input: args, result });
+        if (name === "create_roadmap" && result.url) roadmapUrl = result.url;
         functionResponses.push({
           functionResponse: { name, response: { output: JSON.stringify(result) } },
         });
       } catch (err) {
         logger.error(`Tool error: ${name}`, { error: err.message });
+        send(` ❌ ${err.message}`);
         functionResponses.push({
           functionResponse: { name, response: { error: err.message } },
         });
@@ -114,5 +126,7 @@ export async function runNotionAgentGemini({
     contents.push({ role: "user", parts: functionResponses });
   }
 
-  return { summary: "Agent finished.", actions };
+  const summary = "Agent finished.";
+  if (roadmapUrl) send(`\n\n---\n[📋 View in Notion](${roadmapUrl})`);
+  return { summary, actions };
 }

@@ -49,9 +49,12 @@ Rules:
 export async function runNotionAgent({
   prompt,
   model = process.env.CLAUDE_MODEL || "claude-sonnet-4-6",
+  onChunk = null,
 }) {
+  const send = (text) => onChunk?.(text);
   const messages = [{ role: "user", content: prompt }];
   const actions = [];
+  let roadmapUrl = null;
   const MAX_ITERATIONS = 15;
 
   for (let i = 0; i < MAX_ITERATIONS; i++) {
@@ -73,6 +76,8 @@ export async function runNotionAgent({
         .filter((b) => b.type === "text")
         .map((b) => b.text)
         .join("");
+      send(summary);
+      if (roadmapUrl) send(`\n\n---\n[📋 View in Notion](${roadmapUrl})`);
       return { summary, actions };
     }
 
@@ -82,9 +87,18 @@ export async function runNotionAgent({
 
       for (const block of toolUseBlocks) {
         logger.info(`Tool call: ${block.name}`, block.input);
+
+        const label = {
+          create_roadmap: `Creating roadmap: **${block.input.title}**...`,
+          add_task_to_backlog: `Adding to backlog: ${block.input.title}`,
+          add_task_to_sprint: `Adding to sprint: ${block.input.title}`,
+        }[block.name] ?? `Calling ${block.name}...`;
+        send(`\n${label}`);
+
         try {
           const result = await executeTool(block.name, block.input);
           actions.push({ tool: block.name, input: block.input, result });
+          if (block.name === "create_roadmap" && result.url) roadmapUrl = result.url;
           toolResults.push({
             type: "tool_result",
             tool_use_id: block.id,
@@ -92,6 +106,7 @@ export async function runNotionAgent({
           });
         } catch (err) {
           logger.error(`Tool error: ${block.name}`, { error: err.message });
+          send(` ❌ ${err.message}`);
           toolResults.push({
             type: "tool_result",
             tool_use_id: block.id,
@@ -110,5 +125,7 @@ export async function runNotionAgent({
     break;
   }
 
-  return { summary: "Agent finished.", actions };
+  const summary = "Agent finished.";
+  if (roadmapUrl) send(`\n\n---\n[📋 View in Notion](${roadmapUrl})`);
+  return { summary, actions };
 }

@@ -1,22 +1,28 @@
 import { useState, useCallback, useRef } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 
-const STORAGE_KEY = 'chat_history'
+function storageKey(userId) {
+  return userId ? `chat_history_${userId}` : null
+}
 
-function loadHistory() {
+function loadHistory(userId) {
+  const key = storageKey(userId)
+  if (!key) return []
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
+    return JSON.parse(localStorage.getItem(key) || '[]')
   } catch {
     return []
   }
 }
 
-function saveHistory(history) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(history))
+function saveHistory(userId, history) {
+  const key = storageKey(userId)
+  if (!key) return
+  localStorage.setItem(key, JSON.stringify(history))
 }
 
-export function useChat() {
-  const [chats, setChats] = useState(loadHistory)
+export function useChat({ userId, token } = {}) {
+  const [chats, setChats] = useState(() => loadHistory(userId))
   const [activeChatId, setActiveChatId] = useState(null)
   const [isStreaming, setIsStreaming] = useState(false)
   const abortRef = useRef(null)
@@ -24,13 +30,19 @@ export function useChat() {
   const activeChat = chats.find(c => c.id === activeChatId) || null
   const messages = activeChat?.messages || []
 
+  // Reload chats when user changes (login / logout)
+  const resetForUser = useCallback((newUserId) => {
+    setChats(loadHistory(newUserId))
+    setActiveChatId(null)
+  }, [])
+
   const updateChats = useCallback((updater) => {
     setChats(prev => {
       const next = typeof updater === 'function' ? updater(prev) : updater
-      saveHistory(next)
+      saveHistory(userId, next)
       return next
     })
-  }, [])
+  }, [userId])
 
   const newChat = useCallback(() => {
     const id = uuidv4()
@@ -45,8 +57,8 @@ export function useChat() {
     setActiveChatId(prev => prev === id ? null : prev)
   }, [updateChats])
 
-  const sendMessage = useCallback(async (text, apiKey) => {
-    if (!text.trim() || isStreaming) return
+  const sendMessage = useCallback(async (text) => {
+    if (!text.trim() || isStreaming || !userId) return
 
     let chatId = activeChatId
     let isNew = false
@@ -80,7 +92,6 @@ export function useChat() {
 
     if (isNew) setActiveChatId(chatId)
 
-    // Add placeholder assistant message
     updateChats(prev =>
       prev.map(c =>
         c.id === chatId
@@ -92,26 +103,29 @@ export function useChat() {
     setIsStreaming(true)
 
     try {
-      // Get the full message history for context
       const history = (chats.find(c => c.id === chatId)?.messages || [])
         .filter(m => !m.streaming)
         .concat(userMsg)
         .map(m => ({ role: m.role, content: m.content }))
 
-      // Call the API - swap this URL for your backend endpoint
       const controller = new AbortController()
       abortRef.current = controller
 
       const res = await fetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: history, apiKey }),
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ messages: history }),
         signal: controller.signal,
       })
 
-      if (!res.ok) throw new Error(`API error ${res.status}`)
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || `API error ${res.status}`)
+      }
 
-      // Stream the response
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
       let accumulated = ''
@@ -121,7 +135,6 @@ export function useChat() {
         if (done) break
 
         const chunk = decoder.decode(value, { stream: true })
-        // Handle SSE format (data: ...\n\n) or plain text
         const lines = chunk.split('\n')
         for (const line of lines) {
           if (line.startsWith('data: ')) {
@@ -145,27 +158,16 @@ export function useChat() {
         updateChats(prev =>
           prev.map(c =>
             c.id === chatId
-              ? {
-                  ...c,
-                  messages: c.messages.map(m =>
-                    m.id === assistantId ? { ...m, content: accumulated } : m
-                  ),
-                }
+              ? { ...c, messages: c.messages.map(m => m.id === assistantId ? { ...m, content: accumulated } : m) }
               : c
           )
         )
       }
 
-      // Mark streaming done
       updateChats(prev =>
         prev.map(c =>
           c.id === chatId
-            ? {
-                ...c,
-                messages: c.messages.map(m =>
-                  m.id === assistantId ? { ...m, streaming: false } : m
-                ),
-              }
+            ? { ...c, messages: c.messages.map(m => m.id === assistantId ? { ...m, streaming: false } : m) }
             : c
         )
       )
@@ -174,28 +176,15 @@ export function useChat() {
         updateChats(prev =>
           prev.map(c =>
             c.id === chatId
-              ? {
-                  ...c,
-                  messages: c.messages.map(m =>
-                    m.id === assistantId ? { ...m, content: m.content || '*(stopped)*', streaming: false } : m
-                  ),
-                }
+              ? { ...c, messages: c.messages.map(m => m.id === assistantId ? { ...m, content: m.content || '*(stopped)*', streaming: false } : m) }
               : c
           )
         )
       } else {
-        // Show error in chat
         updateChats(prev =>
           prev.map(c =>
             c.id === chatId
-              ? {
-                  ...c,
-                  messages: c.messages.map(m =>
-                    m.id === assistantId
-                      ? { ...m, content: `**Error:** ${err.message}\n\nMake sure your backend is running at \`/api/chat\`.`, streaming: false, error: true }
-                      : m
-                  ),
-                }
+              ? { ...c, messages: c.messages.map(m => m.id === assistantId ? { ...m, content: `**Error:** ${err.message}`, streaming: false, error: true } : m) }
               : c
           )
         )
@@ -204,7 +193,7 @@ export function useChat() {
       setIsStreaming(false)
       abortRef.current = null
     }
-  }, [activeChatId, isStreaming, chats, updateChats])
+  }, [activeChatId, isStreaming, chats, updateChats, userId, token])
 
   const stopStreaming = useCallback(() => {
     abortRef.current?.abort()
@@ -221,5 +210,6 @@ export function useChat() {
     deleteChat,
     sendMessage,
     stopStreaming,
+    resetForUser,
   }
 }

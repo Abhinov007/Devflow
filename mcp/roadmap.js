@@ -5,16 +5,6 @@ function richText(text) {
   return [{ type: "text", text: { content: text } }];
 }
 
-export async function listRoadmap({ pageSize = 20, filter, sorts } = {}) {
-  const resp = await notionClient.databases.query({
-    database_id: notion.roadmapDbId,
-    page_size: pageSize,
-    ...(filter ? { filter } : {}),
-    ...(sorts ? { sorts } : {}),
-  });
-  return resp.results;
-}
-
 export async function addToRoadmap({ title, phases = [] }) {
   const children = [];
 
@@ -40,9 +30,9 @@ export async function addToRoadmap({ title, phases = [] }) {
   }
 
   const resp = await notionClient.pages.create({
-    parent: { database_id: notion.roadmapDbId },
+    parent: { page_id: notion.roadmapDbId },
     properties: {
-      Name: { title: [{ text: { content: title } }] },
+      title: [{ text: { content: title } }],
     },
     children,
   });

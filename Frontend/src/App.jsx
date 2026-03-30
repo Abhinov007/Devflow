@@ -7,7 +7,22 @@ import EmptyState from './components/EmptyState'
 import LoginModal from './components/LoginModal'
 import styles from './App.module.css'
 
+const AUTH_KEY = 'devflow_auth'
+
+function loadAuth() {
+  try {
+    return JSON.parse(localStorage.getItem(AUTH_KEY) || 'null')
+  } catch {
+    return null
+  }
+}
+
 export default function App() {
+  const [auth, setAuth] = useState(loadAuth)   // { token, user } or null
+  const [showLogin, setShowLogin] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const bottomRef = useRef(null)
+
   const {
     chats,
     activeChatId,
@@ -18,34 +33,33 @@ export default function App() {
     deleteChat,
     sendMessage,
     stopStreaming,
-  } = useChat()
+    resetForUser,
+  } = useChat({ userId: auth?.user?.id, token: auth?.token })
 
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [showLogin, setShowLogin] = useState(false)
-  const [user, setUser] = useState(null)
-  const bottomRef = useRef(null)
-
-  // Auto-scroll to bottom on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  const handleSend = (text) => {
-    // Pass user's API key if stored, or null (backend handles it)
-    sendMessage(text, null)
-  }
-
-  const handleSuggest = (text) => {
-    handleSend(text)
-  }
-
-  const handleLogin = (userData) => {
-    setUser(userData)
+  const handleLogin = ({ token, user }) => {
+    const authData = { token, user }
+    localStorage.setItem(AUTH_KEY, JSON.stringify(authData))
+    setAuth(authData)
+    resetForUser(user.id)
     setShowLogin(false)
   }
 
-  const handleSelectChat = (id) => {
-    setActiveChatId(id)
+  const handleLogout = () => {
+    localStorage.removeItem(AUTH_KEY)
+    setAuth(null)
+    resetForUser(null)
+  }
+
+  const handleSend = (text) => {
+    if (!auth) {
+      setShowLogin(true)
+      return
+    }
+    sendMessage(text)
   }
 
   const hasMessages = messages.length > 0
@@ -56,17 +70,16 @@ export default function App() {
         chats={chats}
         activeChatId={activeChatId}
         onNewChat={newChat}
-        onSelectChat={handleSelectChat}
+        onSelectChat={setActiveChatId}
         onDeleteChat={deleteChat}
-        user={user}
+        user={auth?.user || null}
         onLogin={() => setShowLogin(true)}
-        onLogout={() => setUser(null)}
+        onLogout={handleLogout}
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed(v => !v)}
       />
 
       <div className={styles.main}>
-        {/* Top bar */}
         <div className={styles.topbar}>
           <span className={styles.chatLabel}>
             {chats.find(c => c.id === activeChatId)?.title || 'New chat'}
@@ -76,10 +89,9 @@ export default function App() {
           </div>
         </div>
 
-        {/* Message area */}
         <div className={styles.messages}>
           {!hasMessages ? (
-            <EmptyState onSuggest={handleSuggest} />
+            <EmptyState onSuggest={handleSend} />
           ) : (
             <div className={styles.messageList}>
               {messages.map(msg => (
@@ -90,12 +102,12 @@ export default function App() {
           )}
         </div>
 
-        {/* Input */}
         <ChatInput
           onSend={handleSend}
           isStreaming={isStreaming}
           onStop={stopStreaming}
           disabled={false}
+          placeholder={auth ? 'Message…' : 'Sign in to start chatting…'}
         />
       </div>
 

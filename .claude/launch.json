@@ -5,8 +5,16 @@
       "name": "devflow-api",
       "runtimeExecutable": "node",
       "runtimeArgs": ["server.js"],
-      "port": 3000,
-      "autoPort": true
+      "port": 3001,
+      "autoPort": false
+    },
+    {
+      "name": "devflow-frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "Frontend",
+      "port": 5173,
+      "autoPort": false
     }
   ]
 }

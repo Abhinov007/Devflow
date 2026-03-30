@@ -4,3 +4,9 @@ node_modules/
 .DS_Store
 dist/
 coverage/
+
+# Auth — never commit real user credentials
+auth/users.json
+
+# Claude local settings
+.claude/settings.local.json
