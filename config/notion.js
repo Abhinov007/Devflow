@@ -17,6 +17,7 @@ export const notion = {
   roadmapDbId: extractNotionId(requireEnv("NOTION_ROADMAP_PAGE")),
   sprintDbId: extractNotionId(requireEnv("NOTION_SPRINT_DB")),
   backlogDbId: extractNotionId(requireEnv("NOTION_BACKLOG_DB")),
+  changelogDbId: extractNotionId(requireEnv("NOTION_CHANGELOG_DB")),
 };
 
 export { extractNotionId };

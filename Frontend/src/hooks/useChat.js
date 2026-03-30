@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from 'react'
 import { v4 as uuidv4 } from 'uuid'
+import { apiUrl } from '../api'
 
 function storageKey(userId) {
   return userId ? `chat_history_${userId}` : null
@@ -111,7 +112,7 @@ export function useChat({ userId, token } = {}) {
       const controller = new AbortController()
       abortRef.current = controller
 
-      const res = await fetch('/api/chat', {
+      const res = await fetch(apiUrl('/api/chat'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -198,6 +198,26 @@
   color: var(--text-secondary);
 }
 
+.githubBtn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--text-secondary);
+  border: none;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+  margin-bottom: 8px;
+}
+.githubBtn:hover {
+  background: #7c6af7;
+  color: #fff;
+}
+
 .loginBtn {
   width: 100%;
   display: flex;

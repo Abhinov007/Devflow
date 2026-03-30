@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import styles from './LoginModal.module.css'
+import { apiUrl } from '../api'
 
 export default function LoginModal({ onClose, onLogin }) {
   const [email, setEmail] = useState('')
@@ -15,7 +16,7 @@ export default function LoginModal({ onClose, onLogin }) {
     setError('')
     setLoading(true)
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await fetch(apiUrl('/api/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim(), password }),

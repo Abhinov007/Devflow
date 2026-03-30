@@ -8,6 +8,7 @@ import { readFileSync } from "fs";
 import { logger } from "./utils/logger.js";
 import { runNotionAgent } from "./llm/claudeToolUse.js";
 import { runNotionAgentGemini } from "./llm/geminiToolUse.js";
+import { handleGithubWebhook } from "./github/webhook.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "devflow-change-this-in-production";
 
@@ -35,7 +36,17 @@ function requireAuth(req, res, next) {
 }
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: process.env.FRONTEND_URL ? [process.env.FRONTEND_URL, 'http://localhost:5173'] : true,
+  credentials: true,
+}));
+
+// Capture rawBody for GitHub webhook signature verification BEFORE json parsing
+app.use((req, _res, next) => {
+  let data = "";
+  req.on("data", (chunk) => (data += chunk));
+  req.on("end", () => { req.rawBody = data; next(); });
+});
 app.use(express.json());
 
 // ── Health ─────────────────────────────────────────────────────────────────────
@@ -100,6 +111,30 @@ app.post("/api/chat", requireAuth, async (req, res) => {
 
   res.write("data: [DONE]\n\n");
   res.end();
+});
+
+// ── GitHub webhook ─────────────────────────────────────────────────────────────
+// POST /api/github/webhook
+// Receives PR events from GitHub and logs them to the Notion Changelog DB.
+// No JWT auth — secured via HMAC signature (GITHUB_WEBHOOK_SECRET in .env).
+app.post("/api/github/webhook", handleGithubWebhook);
+
+// ── GitHub setup info ───────────────────────────────────────────────────────────
+// GET /api/github/setup  — returns the webhook URL and instructions
+app.get("/api/github/setup", requireAuth, (req, res) => {
+  const base = process.env.PUBLIC_URL || `http://localhost:${process.env.PORT || 3001}`;
+  res.json({
+    webhookUrl: `${base}/api/github/webhook`,
+    secret: process.env.GITHUB_WEBHOOK_SECRET || "(not set)",
+    instructions: [
+      "Go to your GitHub repo → Settings → Webhooks → Add webhook",
+      `Set Payload URL to: ${base}/api/github/webhook`,
+      "Set Content type to: application/json",
+      "Set Secret to the value of GITHUB_WEBHOOK_SECRET in your .env",
+      "Under events, select: Let me select individual events → Pull requests",
+      "Click Add webhook",
+    ],
+  });
 });
 
 // ── Generate endpoint (JSON, non-streaming) ────────────────────────────────────

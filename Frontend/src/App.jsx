@@ -5,6 +5,7 @@ import Message from './components/Message'
 import ChatInput from './components/ChatInput'
 import EmptyState from './components/EmptyState'
 import LoginModal from './components/LoginModal'
+import GithubSetup from './components/GithubSetup'
 import styles from './App.module.css'
 
 const AUTH_KEY = 'devflow_auth'
@@ -20,6 +21,7 @@ function loadAuth() {
 export default function App() {
   const [auth, setAuth] = useState(loadAuth)   // { token, user } or null
   const [showLogin, setShowLogin] = useState(false)
+  const [showGithubSetup, setShowGithubSetup] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const bottomRef = useRef(null)
 
@@ -75,6 +77,7 @@ export default function App() {
         user={auth?.user || null}
         onLogin={() => setShowLogin(true)}
         onLogout={handleLogout}
+        onGithubSetup={() => setShowGithubSetup(true)}
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed(v => !v)}
       />
@@ -115,6 +118,13 @@ export default function App() {
         <LoginModal
           onClose={() => setShowLogin(false)}
           onLogin={handleLogin}
+        />
+      )}
+
+      {showGithubSetup && (
+        <GithubSetup
+          token={auth?.token}
+          onClose={() => setShowGithubSetup(false)}
         />
       )}
     </div>
