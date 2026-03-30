@@ -1,6 +1,9 @@
 function requireEnv(name) {
   const v = process.env[name];
-  if (!v) throw new Error(`Missing required env var: ${name}`);
+  if (!v) {
+    console.error(`[config] Missing required env var: ${name}`);
+    return '';
+  }
   return v;
 }
 
