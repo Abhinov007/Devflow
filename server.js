@@ -41,13 +41,10 @@ app.use(cors({
   credentials: true,
 }));
 
-// Capture rawBody for GitHub webhook signature verification BEFORE json parsing
-app.use((req, _res, next) => {
-  let data = "";
-  req.on("data", (chunk) => (data += chunk));
-  req.on("end", () => { req.rawBody = data; next(); });
-});
-app.use(express.json());
+// Capture rawBody via express.json verify callback (doesn't consume the stream twice)
+app.use(express.json({
+  verify: (req, _res, buf) => { req.rawBody = buf.toString(); }
+}));
 
 // ── Health ─────────────────────────────────────────────────────────────────────
 app.get("/api/health", (_req, res) => {
