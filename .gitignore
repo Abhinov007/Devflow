@@ -8,5 +8,5 @@ coverage/
 # Auth — never commit real user credentials
 auth/users.json
 
-# Claude local settings
-.claude/settings.local.json
+# Claude
+.claude/
